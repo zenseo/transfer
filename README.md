@@ -5,7 +5,7 @@ develop
 
 ###install
 
-    <?php
+    //<?php
     $_SERVER['DOCUMENT_ROOT'].'/assets/modules/transfer/index.php';
 
 =============
