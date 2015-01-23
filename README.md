@@ -3,6 +3,12 @@ modx_transfer
 
 develop
 
+#install
+
+  <?php
+
+  $_SERVER['DOCUMENT_ROOT'].'/assets/modules/transfer/index.php';
+
 =============
 Что в плане на разработку
 =============
