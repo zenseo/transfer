@@ -6,13 +6,13 @@ if($debug > 0) {
 	ini_set ('display_errors', 1);
 }
 
-
 define("PATH_MODXTRANSFER", $_SERVER['DOCUMENT_ROOT'].'/assets/modules/transfer/'); 
 
+require_once(PATH_MODXTRANSFER.'model/api.class.php');
 require_once(PATH_MODXTRANSFER.'model/transfer.class.php');
 
 $config = array(
-  'domen' => 'www.stroy-b.ru',
+  'domen' => 'www.alteramedica.ru',
 );
 
 $transfer = new transfer($config);
@@ -21,11 +21,11 @@ $option = isset($_POST['option']) ? intval($_POST['option']) : 0;
 
 $options = array(
   0 => '',
-  1 => 'Редиректы',
-  2 => 'Перенести контент',
-  3 => 'Создание страниц',
-  4 => 'Парсинг текста',
-  5 => 'Парсинг документа'
+  1 => 'Вывод списком редиректов старых страниц на новые',
+  2 => 'Перенос контента со старых страниц на новые',
+  3 => 'Создание страниц из текста',
+  4 => 'Парсинг чанка на выборку необходимых параметров',
+  5 => 'Создание структуры сайта из файла' 
 );
  
 ?>
@@ -87,15 +87,15 @@ $options = array(
 
 
 if($option == 1) {
- echo $transfer->set_redirect_url();
+  echo $transfer->set_redirect_url();
 } else if($option == 2) {
- echo $transfer->set_parser_content();
+  echo $transfer->set_parser_content();
 } else if($option == 3) {
- echo $transfer->set_page();
+  echo $transfer->set_page();
 } else if($option == 4) {
- echo $transfer->update_content_from_chunk();
+  echo $transfer->update_content_from_chunk();
 } else if($option == 5) {
- echo $transfer->update_content_from_document();
+  echo $transfer->set_tree_site();
 }
 
 

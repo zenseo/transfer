@@ -1,6 +1,6 @@
 <?php
 
-class Transfer {
+class Transfer extends Api {
 
 	var $config = ''; 
 
@@ -9,74 +9,60 @@ class Transfer {
 
         $this->config = $config;
         $this->modx = $modx;
+   	} 
+
+   	//создание структуры сайта из файла
+ 
+   	public function set_tree_site(
+   		$url_file = 'https://dl.dropboxusercontent.com/u/18352137/temp/sedlog.txt',
+   		$template = 3
+   	) {
+   		$tree = array();
+
+   		if(!empty($url_file)) {
+   			$tree = file($url_file);
+
+   			if(!empty($tree) && is_array($tree)) {
+   				foreach ($tree as $key => $value) { 
+   					$tree_item = explode($this->config['domen'].'/',$value);
+   					$tree_item = $tree_item[1];
+   					if(!empty($tree_item)) {
+
+   						//очистка от лишних элементов
+   						$tree_item = explode('/',$tree_item);
+
+   						$item = array();
+   						foreach ($tree_item as $key => $value) {
+   							$value = trim($value);
+   							if(!empty($value)) { 
+   								$item[] = $value;
+   							}
+   						}
+   						//внесение
+   						$parent = 0;
+
+   						foreach ($item as $key => $value) {
+   							$parent = $this->set_content(
+								$value, //pagetitle
+								'',  //longtitle
+								$value, //alias
+								$parent, 
+								$template, 
+								'', //content
+								'' //description
+							);
+   						}
+
+   						print_r($item);
+
+   						echo '<hr />';
+   					}
+   				}
+   			}
+   		}
    	}
 
-   	function update_content_from_document() {
-
-   		global $modx;
-
-		include(PATH_MODXTRANSFER.'model/simple_html_dom.php');
-
-		$docs = $this->get_content("parent = 4");
-
-
- 		
- 		foreach($docs as $doc) {
-
- 			echo  $doc['id'].'<br />';
-
- 			$document = explode('<ul>',$doc['content']);
- 			 
- 			$html = str_get_html($document[0]);
-
- 			$json = [];
-
-				foreach ($html->find('a') as $k => $element) { 
-					//echo  $k.')'.$element->href."->".$element->title;
-					//echo '<br />';
-
-					$title = strlen($element->title) > 1 ? $element->title : "";
-
-					$json[] = array($element->href,"", $title);
-				}
-			
- 			 echo $json  = json_encode($json);
- 			//$this->set_tv($tmplvarid = 7, intval($doc['id']), $json);
- 			echo '<hr />';
- 			/*
-
-
- 			$content = explode("руб.</p>",$doc['content']);
- 			$content = explode('<h2 class="tab_info">',$content[1]);
-
-			$i = explode("Планировка дома",$doc['content']);
-
-			$i = str_get_html($i[1]);
-
-			$json = array();
-
-			foreach ($i->find('a') as $k => $element) { 
-				$json[] = array($element->href,"","");
-			}
-
-			echo $json  = json_encode($json);
-
- 			echo '<br />';	  
-			echo  $doc['id'];
- 					echo '<br />';
- 			echo $content = $content[0];
- 			
-			echo '<br />';
- 			echo $image = str_replace('../..','',$html->find('img',0)->src);
- 			echo '<hr />';
- 
- 			$this->set_tv($tmplvarid = 8, $doc['id'], $image);
- 			$this->set_tv($tmplvarid = 7, $doc['id'], $json);
- 			$this->set_tv($tmplvarid = 9, $doc['id'], $content);
- 			*/
- 		}
-	} 
-
+	// обновление документа из чанка
    	function update_content_from_chunk() {
 
    		global $modx;
@@ -123,22 +109,7 @@ echo '<br />';
 
 	} 
 
-   	function set_alias() {
-
-   		$urls = $this->get_content(' parent = 5 ', 1000);
-
-		foreach ($urls as $value) {
-   			
-   			$fields = array( 
-				'alias' => $this->trans($value['pagetitle']) 
-			);
-
-			$this->update_content($fields, $value['id']);
-
-		}
-
-   	}
-
+   	//Создание страниц из спарсенных ссылок
    	function set_page() { 
    		include(PATH_MODXTRANSFER.'model/simple_html_dom.php');
 
@@ -172,47 +143,46 @@ echo '<br />';
  
    	}
 
-   	function set_parser_content() {
+   	//перенос контента со старых страниц на новые
+   	function set_parser_content(
+   		$where_document = ' longtitle = "" ', //для каких документов переносить
+   		$limit_document = 30, //число страниц для переноса за раз
+   		$field_name = 'alias', //поле, где хранится старый адрес
+   		$set_content = 1 //занесение контента
+   	) {
 
 		include(PATH_MODXTRANSFER.'model/simple_html_dom.php');
  
-		$urls = $this->get_content(' longtitle = "" and description > "" ', 10);
-
+		$urls = $this->get_content($where_document, $limit_document);
+ 
 		foreach ($urls as $value) {
 
-			$value['description'] = trim($value['description']);
+			$value[$field_name] = trim($value[$field_name]);
 			$get_url = '';
 
-			if(!empty($value['description'])) {
-
-				if(strpos($value['description'], $this->config['domen'])) {
-					$get_url = $value['description'];
-				} else if(strcmp('/', substr($value['description'],0,1)) == 0) {
-					$get_url = 'http://'.$this->config['domen'].''.$value['description'];
-				} else {
-					$get_url = 'http://'.$this->config['domen'].'/'.$value['description'];
-				}
-
-				echo $get_url; 
+			if(!empty($value[$field_name])) {
+ 
+				$get_url = $this->_get_normal_url('', $value['id']); 
 
 				$html = $this->file_get_contents_curl($get_url);
 				//$html = iconv('cp1251', 'utf-8', $html);
-				
 				$html = str_get_html($html); 
- 
+ 				
+ 				$this->set_report_status($get_url, 0);
+ 				 
 				if($html) {
 
 					$h1 = $html->find('h1', 0)->innertext;  
 
-					$content = $this->filter_content(
-						$html->find('#content', 0)->innertext
+					$content = $this->_filter_content(
+						$html->find('td.content', 0)->innertext
 					);
 					 
 					$meta = $this->get_meta( $html->find('head', 0)->innertext);
 
 					//$price = @$html->find('.red', 0)->innertext;
  
-					echo $this->report_parser_content(
+					echo $this->_report_parser_content(
 						array(
 							'h1' => $h1,
 							'content' => $content,
@@ -222,54 +192,83 @@ echo '<br />';
 							)
 						)
 					);
+ 
+					if(1 > 0) {
 
-					$set_content = 1;
-
-					if($set_content > 0) {
-
-						$this->set_tv($tmplvarid = 2, $value['id'], $meta['title']);
-						$this->set_tv($tmplvarid = 3, $value['id'], $meta['description']);
-						$this->set_tv($tmplvarid = 1, $value['id'],  $meta['key']);
+						$this->set_tv($tmplvarid = 3, $value['id'], $meta['title']);
+						$this->set_tv($tmplvarid = 1, $value['id'], $meta['description']);
+						$this->set_tv($tmplvarid = 2, $value['id'],  $meta['key']);
  
  						//$this->set_tv($tmplvarid = 4, $value['id'], $price);
 
 						//обновляем документ
 						$fields = array(
 							'content' => $content,
-							'longtitle' => $h1 
+							'longtitle' => $h1,
+							'pagetitle' => $h1
 						);
 
-						$this->update_content($fields, $value['id']);
+						$this->update_content($fields, ' id = '.$value['id']);
 
 					} 
- 
-					echo '<p style="color:green;">'.$get_url.'<hr /> </p>';
-
-				} else {
-					echo '<p style="color:red;">'.$get_url.'<hr /> </p>';
-				}
-				 
-			} else {
-					echo '<p style="color: blue;">';
-					echo $value['pagetitle'];
-					echo '<hr />';	
-					echo '</p>';
-			}
-			//break;
+				}  
+			 
+			} else { 
+				$this->set_report_status($value['pagetitle'], 0);
+			} 
 		}
-	} 
+	}
+ 
+	private function set_report_status($value = '', $type = 0) {
+		$out = '';
 
-	function filter_content($content = '') {
-
-		$content = preg_replace('~<h1>(.*?)</h1>~i','',$content);
-		$content = preg_replace('~<div id="button_cena_na_uslugu">(.*?)</div>~i','',$content);
-
-		$content = explode('<a name="mailform">', $content);
-
-		return $content[0];
+		switch ($type) {
+    		case 0: //neutral
+        		 $status = 'blue';
+        	break;
+    		case 1: //error
+        		 $status = 'red';
+        	break;
+    		case 2: //success
+        		 $status = 'green';
+        	break;
+		}
+ 
+		echo '<p style="color: '.$status.';">'.$value.'<hr /></p>';
 	}
 
-	function report_parser_content($c = array()) {
+	//приведение ссылки в должный вид
+	private function _get_normal_url($url, $id) {
+		global $modx;
+
+		$get_url = '';
+
+		if(empty($id)) {
+			if(strpos($url, $this->config['domen'])) {
+				$get_url = $value[$field_name];
+			} else if(strcmp('/', substr($url,0,1)) == 0) {
+				$get_url = 'http://'.$this->config['domen'].''.$url;
+			} else {
+				$get_url = 'http://'.$this->config['domen'].'/'.$url;
+			}
+		} else {
+			$get_url = $modx->makeUrl(intval($id), '', '', 'full');
+			$get_url = str_replace('test.', 'www.', $get_url);
+		}
+
+ 		return $get_url;
+	}
+
+	//очистка контента для переноса контента
+	private function _filter_content($content = '') {
+
+		$content = explode('</h1>',$content);
+ 
+		return $content[1];
+	}
+
+	//вывод отчёта переноса контента
+	private function _report_parser_content($c = array()) {
 		$out = '';
 
 		if(empty($c['h1'])) {
@@ -312,7 +311,8 @@ echo '<br />';
 
 		return $out;
 	}
- 
+ 	
+ 	//генерация редиректов
 	function set_redirect_url() {
 		global $modx; 
 		$urls = $this->get_content();
@@ -336,235 +336,19 @@ echo '<br />';
 		 
 	} 
 
-	private function set_url_rewrite() {
+	//генерация чпу для заданных страниц
+   	function set_alias() {
 
-	}
+   		$urls = $this->get_content(' parent = 5 ', 1000);
 
-	private function set_content(
-				$pagetitle, 
-				$longtitle, 
-				$alias, 
-				$parent, 
-				$template, 
-				$content,
-				$description
-	) {
-		$out = 0;
-		if($this->check_isset_content($alias)) { 
-		
-		} else {
-			
-			$id_insert = $this->insert_content(
-				$pagetitle, 
-				$longtitle, 
-				$alias, 
-				$parent, 
-				$template, 
-				$content,
-				$description
+		foreach ($urls as $value) {
+   			
+   			$fields = array( 
+				'alias' => $this->trans($value['pagetitle']) 
 			);
+
+			$this->update_content($fields, $value['id']);
+
 		}
-		return $out;
-	}
-
-	function get_content($where = '', $limit = '', $active = 1){
-		global $modx;
-
-		$where_active = '   published = 1 AND deleted = 0 AND id > 1';
-
-		if($active > 0) {
-			if(empty($where)) {
-				$where = $where_active;
-			} else {
-				$where = $where.' AND '.$where_active; 
-			}
-		}
-
-		$limit = empty($limit) ? ' LIMIT 1000' : ' LIMIT '.$limit;
-		 
-		$out = array();
-		$get_content = $modx->db->query(' SELECT * FROM modx_site_content WHERE '.$where.$limit);
-
-		while($row = $modx->db->getRow($get_content)){ 
-		 	$out[] = $row;
-		}
-
-		return $out;
-	}
-
-	private function set_tv($tmplvarid, $contentid, $value) { 
- 		$out = 0;
-
-		if($this->check_insert_tv($contentid, $tmplvarid) > 0) {
-			if($this->update_tv($tmplvarid, $contentid, $value)) {
-				$out = 1;
-			}
-		} else {
-			if($this->insert_tv($tmplvarid, $contentid, $value)) {
-				$out = 1;
-			}
-		} 
-
-		return $out;
-	}
-
-	function check_isset_content($alias = '') {
-		global $modx;
-		return  $modx->db->getValue(
- 					$modx->db->select(
- 						"id",
- 						$modx->getFullTableName("site_content"),
- 						 "alias = '".$alias."'"
- 			)
-		);
-	}
-
-	function update_content($fields, $where) {
-		global $modx;
-
-		$set_field = array();
-
-		foreach ($fields as $key => $value) {
-			$set_field[] = $key." = '".$modx->db->escape($value)."'";
-		}
-
-		$set_field = implode(', ',$set_field);
-
-		return $modx->db->update(
-			$set_field, 
-			$modx->getFullTableName("site_content"), 
-			$where
-		);
-	}
-
-	function insert_content(
-		$pagetitle = '', 
-		$longtitle = '', 
-		$alias = '', 
-		$parent = '', 
-		$template = 1, 
-		$content = '',
-		$description = ''
-	) {
-		global $modx;
-
-		if(
-			$modx->db->insert(
-			array(
-					'pagetitle' => trim($modx->db->escape($pagetitle)), 
-					'longtitle' => trim($modx->db->escape($longtitle)), //для вставки кода группы
-					'alias' => trim($alias),
-					'published' => 1,
-					'parent' => intval($parent),
-					'isfolder' => 0,
-					'introtext' => NULL,
-					'content' => $modx->db->escape($content),
-					'template' => intval($template),
-					'menuindex' => 0,
-					'createdon' => time(),
-					'hidemenu' => 0,
-					'description' =>  $description
-				), $modx->getFullTableName('site_content'))
-		) {
-			return $modx->db->getInsertId();
-		} else {
-			return false;
-		}
-
-	}
-
-	function check_insert_tv($contentid, $tmplvarid) {
-		global $modx;
-		return  $modx->db->getValue(
- 					$modx->db->select(
- 						"id",
- 						$modx->getFullTableName("site_tmplvar_contentvalues"),
- 						 "tmplvarid = ".$tmplvarid." and value > '' AND contentid = ".$contentid
- 			)
-		);
-	}
-
-	function insert_tv($tmplvarid, $contentid, $value) {
-		global $modx;
-
-		return $modx->db->insert(
-			array(
-				'tmplvarid' => $modx->db->escape($tmplvarid),
- 				'contentid' => $modx->db->escape($contentid),
- 				 'value' => $modx->db->escape( $value)
- 			), 
- 			$modx->getFullTableName('site_tmplvar_contentvalues')
- 		);
-	}
-
-	function update_tv($tmplvarid, $contentid, $value) {
-		global $modx;
-
-		return $modx->db->update(
-				"value = '".$modx->db->escape($value)."'", 
-			$modx->getFullTableName("site_tmplvar_contentvalues"), 
-			"`tmplvarid` = ".intval($tmplvarid)." AND
-			 `contentid` = ".intval($contentid)
-		);
-	}
-
-	function file_get_contents_curl($url) {
-		$ch = curl_init();
-
-		curl_setopt($ch, CURLOPT_HEADER, 0);
-		 //Устанавливаем параметр, чтобы curl возвращал данные, вместо того, чтобы выводить их в браузер.
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-
-		 //разрешаем перенаправление на полученный в заголовке URL
-		 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
-
-		//имитируем браузер опера
-		 curl_setopt($ch, CURLOPT_USERAGENT, 'Opera/9.80 (Windows NT 5.1; U; ru) Presto/2.7.62 Version/11.01');
-
-		curl_setopt($ch, CURLOPT_URL, $url);
-
-		$data = curl_exec($ch);
-		curl_close($ch);
-
-		return $data;
-	}
-
-	function get_meta($content) { 
-
-		preg_match_all('/<title>(.*?)<\/title>/i', $content, $title);
-		preg_match_all('/<meta name="description" content="(.*?)"/i', $content, $description);
-		preg_match_all('/<meta name="keywords" content="(.*?)"/i', $content, $key);
-
-		return array(
-			'title' => $title[1][0],
-			'description' => $description[1][0],
-			'key' => $key[1][0]
-		);
-	}
- 
- // функция превода текста с кириллицы в траскрипт
-	public function trans($str) {
-    	$str = preg_replace('/[^0-9a-zA-Zа-яА-Я]/ui', ' ', $str);
-    	$tr = array(
-        "А"=>"A","Б"=>"B","В"=>"V","Г"=>"G",
-        "Д"=>"D","Е"=>"E","Ж"=>"J","З"=>"Z","И"=>"I",
-        "Й"=>"Y","К"=>"K","Л"=>"L","М"=>"M","Н"=>"N",
-        "О"=>"O","П"=>"P","Р"=>"R","С"=>"S","Т"=>"T",
-        "У"=>"U","Ф"=>"F","Х"=>"H","Ц"=>"TS","Ч"=>"CH",
-        "Ш"=>"SH","Щ"=>"SCH","Ъ"=>"","Ы"=>"YI","Ь"=>"",
-        "Э"=>"E","Ю"=>"YU","Я"=>"YA","а"=>"a","б"=>"b",
-        "в"=>"v","г"=>"g","д"=>"d","е"=>"e","ж"=>"j",
-        "з"=>"z","и"=>"i","й"=>"y","к"=>"k","л"=>"l",
-        "м"=>"m","н"=>"n","о"=>"o","п"=>"p","р"=>"r",
-        "с"=>"s","т"=>"t","у"=>"u","ф"=>"f","х"=>"h",
-        "ц"=>"ts","ч"=>"ch","ш"=>"sh","щ"=>"sch","ъ"=>"y",
-        "ы"=>"yi","ь"=>"","э"=>"e","ю"=>"yu","я"=>"ya",
-		" " => "-","ё" => "e" 
-    	);
-
-    	$str = urlencode(strtolower(strtr(trim($str),$tr)));
-    	$str =  preg_replace('/[-]+/', '-', $str); 
-    	return $str;
-	}
-
+   	}
 }
